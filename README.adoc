@@ -1,0 +1,185 @@
+= QML Bar chart property
+In this article we'll take the BarChart we did already on a previous article, and then provide some list property API for our bar chart application.
+
+:toc:
+:sectnums:
+
+== Introduction
+So we'll take the previous BarChart we already did, and add some list property in order to set bar value on the QML side of the application. 
+
+=== Use case
+Using this project, we'll able to create a StairChart object on the QML side, and we'll be able to set Stair data inside it.
+
+We'll also need to refactor the previous code using this project to make it works better ! We'll create a stair on the Cpp side and expose it to the QML engine using the QML_ELEMENT. 
+
+We'll also make a `QQmlProperty` of `Stair` in the class named `StairChart`
+
+WARNING: Making a `QQmlProperty<Stair>` will let you define stairs on the QML part of the app inside of the `StairChart` object.
+
+We'll also add properties inside of the `Stair` class in order to have some attribute on the QML side such as `from`, `value`, `color` and `text`.
+
+== Refactor
+We'll refactor the application and also adding a new class named `Stair` with several properties to it, each stair is going to be the one we'll display on the bar chart.
+
+WARNING: The chart has several Stairs, each of them have several properties. That's why we'll be able to set them in the QML side of the application.
+
+=== StairChart
+as the last example show, we had only the `StairChart` class, now we'll create a `StairChart` class that contains a `QQmlListProperty<Stairs>` that is the list of stairs that will be displayed by the QML.
+
+NOTE: The `QQmlListProperty<>` let you instantiate it on the QML side of the application.
+
+Finally we'll also make the `QQmlListProperty` as the default property using the following:
+
+```cpp
+class StairChart : public QQuickPaintItem {
+    Q_OBJECT
+    QML_ELEMENT
+    ...
+    Q_CLASSINFO("DefaultProperty", "stairs")
+}
+```
+
+NOTE: The `stairs` is set as the default property, that means you won't need to set it as the object that initialise.
+
+The `StairChart` object will also create methods `appendStair()` to add stair to the `QQmlListProperty<>` object. And also we'll override the `paint()` method that is present in the `QQuickPaintItem`
+
+=== Stair
+The `StairChart` class will then contains a `QQmlListProperty<Stair>`, each stair will be set inside of the `StairChart` container.
+
+This way, we'll be able to creater the chart on the QML using both `StairChart` and each `Stair` on the application:
+
+```cpp
+StairChart {
+    id: stairChartId
+    title: qsTr("Wheat consuption by 2030 ins Mills of Tons")
+    bgColor: "lightgray"
+
+    Stair{
+        from: 50
+        value: 250
+        color: "red"
+        text: "RW"
+    }
+    Stair{
+        from: 100
+        value: 320
+        color: "yellow"
+        text: "CN"
+    }
+    Stair{
+        from: 150
+        value: 133
+        color: "lightblue"
+        text: "DE"
+    }
+    Stair{
+        from: 200
+        value: 202
+        color: "steelblue"
+        text: "FR"
+    }
+    Stair{
+        from: 250
+        value: 250
+        color: "skyblue"
+        text: "US"
+    }
+    Stair{
+        from: 300
+        value: 200
+        color: "beige"
+        text: "ZA"
+    }
+    Stair{
+        from: 350
+        value: 300
+        color: "cyan"
+        text: "JP"
+    }
+    Stair{
+        from: 400
+        value: 122
+        color: "red"
+        text: "VT"
+    }
+}
+```
+You can make it this way in order to test your application, or if you will, you can use a signal `Component.onCompleted` to looping over the `QQmlListProperty` object.
+
+IMPORTANT: While you are using the `QPainter` API for drawing the chart, you have to restore the `QPainter` once you finish drawing because something else can use it
+
+NOTE: The `StairChart` object can be used in the QML application because the `StairChart` type is calling the `QML_ELEMENT`:
+
+```cpp
+class StairChart : public QQuickPaintedItem {
+    Q_OBJECT
+    QML_ELEMENT
+
+...
+```
+
+== QML_ELEMENT
+Declares the enclosing type or namespace to be available in QML, using its class or namespace as a QML element name.
+
+For instance, this makes the Cpp class below available in the QML type named `StairChart`. All properties are then invokable methods and enums are exposed:
+
+```cpp
+class StairChart : public QQuickPaintedItem {
+    Q_OBJECT
+    QML_ELEMENT
+
+    Q_PROPERTY(QQmlListProperty<Stair> stairs READ stairs NOTIFY stairsChanged)
+    Q_PROPERTY(QString title READ title WRITE setTitle NOTIFY titleChanged)
+    Q_PROPERTY(QColor bgColor READ bgColor WRITE setBgColor NOTIFY bgColorChanged)
+    Q_CLASSINFO("DefaultProperty", "stairs")
+
+public:
+    explicit StairChart(QQuickItem *po_parent = nullptr);
+
+    // QQuickPaintedItem interface
+    void paint(QPainter *po_painter);
+
+    // Getter and setters
+    QQmlListProperty<Stair> stairs();
+    QString title() const;
+    QColor bgColor() const;
+
+public slots:
+    void setTitle(const QString &o_title);
+    void setBgColor(const QColor &o_bgColor);
+
+signals:
+    void stairsChanged(const QQmlListProperty<Stair> &o_stairs);
+    void titleChanged(const QString &o_title);
+    void bgColorChanged(const QColor &o_color);
+
+private:
+    static void appendStair(QQmlListProperty<Stair> *po_stairs, Stair *po_stair);
+    void drawStair(QPainter *po_painter, const QRect &o_rect, const QColor &o_color, qreal i_barValue, int i_startingPoint);
+    void drawStairs(QPainter *po_painter, const QRect &o_rect);
+    void drawScale(QPainter *po_painter, const QRect &o_rect);
+
+private:
+    QList<Stair *> _o_stairs;
+    QString _o_title;
+    QColor _o_bgColor;
+};
+```
+When you want to use the type you've registered, *In case you are using CMake*, you can then take the URI of the module and import it to your QML file:
+```qml
+import QtQuick
+import BarChartProperty
+
+Window {
+    width: 640
+    height: 480
+    visible: true
+    title: qsTr("Bar chart property")
+
+    StairChart {
+        id: stairChartId
+        title: qsTr("Wheat consuption by 2030 ins Mills of Tons")
+        bgColor: "lightgray"
+
+...
+```
